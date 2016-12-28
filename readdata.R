@@ -1,0 +1,6 @@
+f<-unzip("activity.zip")
+data<-read.csv(f)
+rm(f)
+data$dates<-strptime(data$date, "%Y-%m-%d")
+uniqueDates <- unique(data$dates)
+uniqueIntervals <- unique(data$interval)

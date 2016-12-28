@@ -7,19 +7,136 @@ output:
 
 
 ## Loading and preprocessing the data
-
+```{r}
+f<-unzip("activity.zip")
+data<-read.csv(f)
+rm(f)
+data$dates<-strptime(data$date, "%Y-%m-%d")
+uniqueDates <- unique(data$dates)
+uniqueIntervals <- unique(data$interval)
+```
 
 
 ## What is mean total number of steps taken per day?
+### Data preparation
+```{r}
+stepsSpl<-split(data$steps, data$dates$yday)
+sumStepsPerDay<-sapply(stepsSpl, sum, na.rm=TRUE)
+```
 
+### Total number of steps taken each day
+```{r}
+plot(uniqueDates, sumStepsPerDay, main="Histogram of steps per day", xlab="Date", ylab="Frequency", type="h", lwd=4, col="blue")
+```
 
+### Mean and median steps per day
+```{r}
+meanStepsPerDay <- sapply(stepsSpl, mean, na.rm=TRUE)
+meanDataFrame <- data.frame(date=uniqueDates, meanStepsPerDay=meanStepsPerDay, row.names=NULL)
+medianStepsPerDay <- sapply(stepsSpl, median, na.rm=TRUE)
+medianDataFrame <- data.frame(date=uniqueDates, medianStepsPerDay=medianStepsPerDay, row.names=NULL)
+```
+
+#### Mean steps per day
+```{r}
+print(meanDataFrame)
+```
+
+#### Median steps per day
+```{r}
+print(medianDataFrame)
+```
 
 ## What is the average daily activity pattern?
-
-
+```{r}
+intervalSplit <- split(data$steps, data$interval)
+averageStepsPerInterval <- sapply(intervalSplit, mean, na.rm=TRUE)
+plot(uniqueIntervals, averageStepsPerInterval, type="l",main="Average number of steps per interval.\n (blue line indicates the interval with maximum steps on average)", xlab="Interval", ylab="Average # of steps ", lwd=2, col="red")
+maxIntervalDays <- max(averageStepsPerInterval, na.rm=TRUE)
+maxIndex <- as.numeric(which(averageStepsPerInterval == maxIntervalDays))
+maxInterval <- uniqueIntervals[maxIndex]
+abline(v=maxInterval, col="blue", lwd=3)
+```
 
 ## Imputing missing values
+### Amount of missing values
+```{r}
+isna<- is.na(data$steps)
+print(sum(isna))
+```
 
+### Dealing with missing values - replace NAs with means
+```{r}
+# Initially replace NaNs in mean steps per day with 0s
+meanStepsPerDay[is.nan(meanStepsPerDay)]<-0
+# To deal with NaNs we will replace them with means. To do that
+# - create a vector with mean values for each day
+meanValues <- rep(meanStepsPerDay, length(data$steps)/length(meanStepsPerDay))
+# - Create new dataset.
+dataNew<-data
+# Now replace these values with their corresponding mean
+dataNew$steps[is.na(data$steps)] <- meanValues[is.na(data$steps)]
+```
 
+### Histograms to compare of the total number of steps taken each day before and after missing values are imputed
+```{r}
+if(!require(ggplot2))
+  stop("you need to install ggplot2")
+if(!require(ggplot2))
+  stop("you need to install gridextra")
+stepsSplNew<-split(dataNew$steps, dataNew$dates$yday)
+sumStepsPerDayNew<-sapply(stepsSplNew, sum, na.rm=TRUE)
+library(ggplot2)
+p<-ggplot(data=data.frame(uniqueDates, sumStepsPerDay), aes(x=uniqueDates, y=sumStepsPerDay))+geom_bar(stat="identity")+labs(y = "Steps per day", x="Dates", title="Steps per day\nincluding unknown values")
+p2<-ggplot(data=data.frame(uniqueDates, sumStepsPerDayNew), aes(x=uniqueDates, y=sumStepsPerDayNew))+geom_bar(stat="identity")+labs(y = "Steps per day", x="Dates", title="Steps per day;\nunknown values replaced\nwith mean")
+library(gridExtra)
+grid.arrange(p, p2, ncol=2)
+```
+
+### Mean and median steps per day with missing values imputed
+```{r}
+meanStepsPerDayNew <- sapply(stepsSplNew, mean, na.rm=TRUE)
+meanDataFrameNew <- data.frame(date=uniqueDates, meanStepsPerDay=meanStepsPerDayNew, row.names=NULL)
+medianStepsPerDayNew <- sapply(stepsSplNew, median, na.rm=TRUE)
+medianDataFrameNew <- data.frame(date=uniqueDates, medianStepsPerDay=medianStepsPerDayNew, row.names=NULL)
+```
+
+#### Mean steps per day (with NaNs replaced with means)
+```{r}
+print(meanDataFrameNew)
+```
+
+#### Median steps per day (with NaNs replaced with means)
+```{r}
+print(medianDataFrameNew)
+```
 
 ## Are there differences in activity patterns between weekdays and weekends?
+### Prepare datasets to compare
+```{r}
+clwdays<-rep(2, length(data$dates))
+clwdays[data$dates$wday>=1 & data$dates$wday<=5]<-1
+dataNew$dateType<-factor(clwdays, levels=c(1,2), labels=c("Weekdays", "Weekends"))
+dataNewWeekdays <- dataNew[dataNew$dateType == "Weekdays", ]
+dataNewWeekends <- dataNew[dataNew$dateType == "Weekends", ]
+
+dataNewSplitWeekdays <- split(dataNewWeekdays$steps, dataNewWeekdays$interval)
+dataNewSplitWeekends <- split(dataNewWeekends$steps, dataNewWeekends$interval)
+
+# Find the average for each interval
+meanStepsPerWeekdayInterval <- sapply(dataNewSplitWeekdays, mean)
+meanStepsPerWeekendInterval <- sapply(dataNewSplitWeekends, mean)
+```
+
+### Average number of steps taken per 5-minute interval across weekdays and weekends
+```{r}
+par(mfcol=c(2,1))
+plot(uniqueIntervals, meanStepsPerWeekdayInterval, type="l",
+     main="Average number of steps - weekdays", 
+     xlab="Interval", ylab="Average # of steps", 
+     lwd=2, col="blue")
+plot(uniqueIntervals, meanStepsPerWeekendInterval, type="l",
+     main="Average number of steps - weekends", 
+     xlab="Interval", ylab="Average # of steps", 
+     lwd=2, col="red")
+```
